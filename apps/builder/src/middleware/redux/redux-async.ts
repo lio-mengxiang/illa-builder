@@ -1,4 +1,4 @@
-import * as Redux from "redux"
+import { Middleware } from "@reduxjs/toolkit"
 import {
   Connection,
   getPayload,
@@ -17,93 +17,161 @@ import {
   ComponentNode,
 } from "@/redux/currentApp/editor/components/componentsState"
 import { UpdateComponentsShapePayload } from "@/redux/currentApp/editor/components/componentsPayload"
+import { AppDispatch, RootState } from "@/store"
 
-export const reduxAsync: Redux.Middleware = store => next => action => {
-  const { type, payload } = action
-  const typeList = type.split("/")
-  const reduxType = typeList[0]
-  const reduxAction = typeList[1]
-  const currentAppID = store.getState().currentApp.appInfo.appId ?? ""
-  if (typeList[typeList.length - 1] === "remote") {
-    const newType = `${reduxType}/${reduxAction}`
-    action.type = newType
-    if (
-      newType === "apps/removeDashboardAppReducer" &&
-      payload === currentAppID
-    ) {
-      const wsUrl = Connection.roomMap.get(currentAppID) ?? ""
-      if (wsUrl) {
-        Connection.leaveRoom("app", currentAppID)
+export const reduxAsync: Middleware<AppDispatch, RootState, AppDispatch> =
+  (store) => (next) => (action) => {
+    const { type, payload } = action
+    const typeList = type.split("/")
+    const reduxType = typeList[0]
+    const reduxAction = typeList[1]
+    const currentAppID = store.getState().currentApp.appInfo.appId ?? ""
+    if (typeList[typeList.length - 1] === "remote") {
+      const newType = `${reduxType}/${reduxAction}`
+      action.type = newType
+      if (
+        newType === "apps/removeDashboardAppReducer" &&
+        payload === currentAppID
+      ) {
+        const wsUrl = Connection.roomMap.get(currentAppID) ?? ""
+        if (wsUrl) {
+          Connection.leaveRoom("app", currentAppID)
+        }
+        window.location.href = "/404"
       }
-      window.location.href = "/404"
+      return next(action)
     }
-    return next(action)
-  }
-  const resp = next(action)
-  //  TODO: @aruseito ws send message when connected
-  try {
-    switch (reduxType) {
-      case "components":
-        switch (reduxAction) {
-          case "addComponentReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_CREATE_STATE,
-                Target.TARGET_COMPONENTS,
-                true,
-                {
-                  type,
+    const resp = next(action)
+    //  TODO: @aruseito ws send message when connected
+    try {
+      switch (reduxType) {
+        case "components":
+          switch (reduxAction) {
+            case "addComponentReducer":
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_CREATE_STATE,
+                  Target.TARGET_COMPONENTS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
                   payload,
-                },
-                payload,
-              ),
-            )
-            break
-          case "updateComponentsShape":
-            const singleComponentPayload: UpdateComponentsShapePayload = payload
-            const singleComponentWSPayload = transformComponentReduxPayloadToWsPayload(
-              singleComponentPayload.components,
-            )
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                singleComponentPayload.isMove
-                  ? Signal.SIGNAL_MOVE_STATE
-                  : Signal.SIGNAL_UPDATE_STATE,
-                Target.TARGET_COMPONENTS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                singleComponentWSPayload,
-              ),
-            )
-            break
-          case "updateComponentReflowReducer":
-            const updateComponentReflowPayload: UpdateComponentReflowPayload = payload
-            const updateComponentReflowWSPayload = transformComponentReduxPayloadToWsPayload(
-              updateComponentReflowPayload.childNodes,
-            )
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_UPDATE_STATE,
-                Target.TARGET_COMPONENTS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                updateComponentReflowWSPayload,
-              ),
-            )
-            break
-          case "updateComponentPropsReducer":
-            const updatePayload: UpdateComponentPropsPayload = payload
-            const finalNode = searchDsl(
-              getCanvas(store.getState()),
-              updatePayload.displayName,
-            )
-            if (finalNode != null) {
+                ),
+              )
+              break
+            case "updateComponentsShape":
+              const singleComponentPayload: UpdateComponentsShapePayload =
+                payload
+              const singleComponentWSPayload =
+                transformComponentReduxPayloadToWsPayload(
+                  singleComponentPayload.components,
+                )
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  singleComponentPayload.isMove
+                    ? Signal.SIGNAL_MOVE_STATE
+                    : Signal.SIGNAL_UPDATE_STATE,
+                  Target.TARGET_COMPONENTS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  singleComponentWSPayload,
+                ),
+              )
+              break
+            case "updateComponentReflowReducer":
+              const updateComponentReflowPayload: UpdateComponentReflowPayload =
+                payload
+              const updateComponentReflowWSPayload =
+                transformComponentReduxPayloadToWsPayload(
+                  updateComponentReflowPayload.childNodes,
+                )
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_UPDATE_STATE,
+                  Target.TARGET_COMPONENTS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  updateComponentReflowWSPayload,
+                ),
+              )
+              break
+            case "updateComponentPropsReducer":
+              const updatePayload: UpdateComponentPropsPayload = payload
+              const finalNode = searchDsl(
+                getCanvas(store.getState()),
+                updatePayload.displayName,
+              )
+              if (finalNode != null) {
+                Connection.getRoom("app", currentAppID)?.send(
+                  getPayload(
+                    Signal.SIGNAL_UPDATE_STATE,
+                    Target.TARGET_COMPONENTS,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [
+                      {
+                        before: {
+                          displayName: updatePayload.displayName,
+                        },
+                        after: finalNode,
+                      },
+                    ],
+                  ),
+                )
+              }
+              break
+
+            case "deleteComponentNodeReducer":
+              const deletePayload: DeleteComponentNodePayload = payload
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_DELETE_STATE,
+                  Target.TARGET_COMPONENTS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  deletePayload.displayNames,
+                ),
+              )
+              break
+            case "resetComponentPropsReducer":
+              const resetWsPayload = transformComponentReduxPayloadToWsPayload(
+                payload as ComponentNode,
+              )
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_UPDATE_STATE,
+                  Target.TARGET_COMPONENTS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  resetWsPayload,
+                ),
+              )
+              break
+            case "updateComponentDisplayNameReducer":
+              const { displayName, newDisplayName } =
+                action.payload as UpdateComponentDisplayNamePayload
+              const findOldNode = searchDsl(
+                getCanvas(store.getState()),
+                newDisplayName,
+              )
+              if (!findOldNode) break
               Connection.getRoom("app", currentAppID)?.send(
                 getPayload(
                   Signal.SIGNAL_UPDATE_STATE,
@@ -116,249 +184,25 @@ export const reduxAsync: Redux.Middleware = store => next => action => {
                   [
                     {
                       before: {
-                        displayName: updatePayload.displayName,
+                        displayName: displayName,
                       },
-                      after: finalNode,
+                      after: {
+                        ...findOldNode,
+                        displayName: newDisplayName,
+                      },
                     },
                   ],
                 ),
               )
-            }
-            break
-
-          case "deleteComponentNodeReducer":
-            const deletePayload: DeleteComponentNodePayload = payload
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_DELETE_STATE,
-                Target.TARGET_COMPONENTS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                deletePayload.displayNames,
-              ),
-            )
-            break
-          case "resetComponentPropsReducer":
-            const resetWsPayload = transformComponentReduxPayloadToWsPayload(
-              payload as ComponentNode,
-            )
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_UPDATE_STATE,
-                Target.TARGET_COMPONENTS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                resetWsPayload,
-              ),
-            )
-            break
-          case "updateComponentDisplayNameReducer":
-            const {
-              displayName,
-              newDisplayName,
-            } = action.payload as UpdateComponentDisplayNamePayload
-            const findOldNode = searchDsl(
-              getCanvas(store.getState()),
-              newDisplayName,
-            )
-            if (!findOldNode) break
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_UPDATE_STATE,
-                Target.TARGET_COMPONENTS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [
-                  {
-                    before: {
-                      displayName: displayName,
-                    },
-                    after: {
-                      ...findOldNode,
-                      displayName: newDisplayName,
-                    },
-                  },
-                ],
-              ),
-            )
-        }
-        break
-      case "dragShadow":
-        switch (reduxAction) {
-          case "addOrUpdateDragShadowReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_DRAG_SHADOW,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          case "removeDragShadowReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_DRAG_SHADOW,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-        }
-        break
-      case "dottedLineSquare":
-        switch (reduxAction) {
-          case "addOrUpdateDottedLineSquareReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_DOTTED_LINE_SQUARE,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          case "removeDottedLineSquareReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_DOTTED_LINE_SQUARE,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-        }
-        break
-      case "action":
-        switch (reduxAction) {
-          case "addActionItemReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_ACTION,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          case "removeActionItemReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_ACTION,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          case "updateActionItemReducer":
-            Connection.getRoom("app", currentAppID)?.send(
-              getPayload(
-                Signal.SIGNAL_ONLY_BROADCAST,
-                Target.TARGET_ACTION,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-        }
-        break
-      case "apps":
-        switch (reduxAction) {
-          case "addDashboardAppReducer":
-            Connection.getRoom("dashboard", "")?.send(
-              getPayload(
-                Signal.SIGNAL_CREATE_STATE,
-                Target.TARGET_APPS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          case "removeDashboardAppReducer":
-            Connection.getRoom("dashboard", "")?.send(
-              getPayload(
-                Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                Target.TARGET_APPS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          case "renameDashboardAppReducer":
-            Connection.getRoom("dashboard", "")?.send(
-              getPayload(
-                Signal.SIGNAL_UPDATE_STATE,
-                Target.TARGET_APPS,
-                true,
-                {
-                  type,
-                  payload,
-                },
-                [payload],
-              ),
-            )
-            break
-          default:
-            break
-        }
-        break
-      case "resource":
-        switch (reduxAction) {
-          case "addResourceItemReducer": {
-            const appId = store.getState().currentApp.appInfo.appId
-            if (typeof appId === "number" && appId >= 0) {
+          }
+          break
+        case "dragShadow":
+          switch (reduxAction) {
+            case "addOrUpdateDragShadowReducer":
               Connection.getRoom("app", currentAppID)?.send(
                 getPayload(
-                  Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                  Target.TARGET_RESOURCE,
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_DRAG_SHADOW,
                   true,
                   {
                     type,
@@ -367,11 +211,12 @@ export const reduxAsync: Redux.Middleware = store => next => action => {
                   [payload],
                 ),
               )
-            } else {
-              Connection.getRoom("dashboard", "")?.send(
+              break
+            case "removeDragShadowReducer":
+              Connection.getRoom("app", currentAppID)?.send(
                 getPayload(
-                  Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                  Target.TARGET_RESOURCE,
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_DRAG_SHADOW,
                   true,
                   {
                     type,
@@ -380,15 +225,16 @@ export const reduxAsync: Redux.Middleware = store => next => action => {
                   [payload],
                 ),
               )
-            }
-            break
+              break
           }
-          case "updateResourceItemReducer": {
-            if (typeof currentAppID === "number" && currentAppID >= 0) {
-              Connection.getRoom("app", `${currentAppID}`)?.send(
+          break
+        case "dottedLineSquare":
+          switch (reduxAction) {
+            case "addOrUpdateDottedLineSquareReducer":
+              Connection.getRoom("app", currentAppID)?.send(
                 getPayload(
-                  Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                  Target.TARGET_RESOURCE,
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_DOTTED_LINE_SQUARE,
                   true,
                   {
                     type,
@@ -397,11 +243,90 @@ export const reduxAsync: Redux.Middleware = store => next => action => {
                   [payload],
                 ),
               )
-            } else {
+              break
+            case "removeDottedLineSquareReducer":
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_DOTTED_LINE_SQUARE,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  [payload],
+                ),
+              )
+              break
+          }
+          break
+        case "action":
+          switch (reduxAction) {
+            case "addActionItemReducer":
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_ACTION,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  [payload],
+                ),
+              )
+              break
+            case "removeActionItemReducer":
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_ACTION,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  [payload],
+                ),
+              )
+              break
+            case "updateActionItemReducer":
+              Connection.getRoom("app", currentAppID)?.send(
+                getPayload(
+                  Signal.SIGNAL_ONLY_BROADCAST,
+                  Target.TARGET_ACTION,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  [payload],
+                ),
+              )
+              break
+          }
+          break
+        case "apps":
+          switch (reduxAction) {
+            case "addDashboardAppReducer":
+              Connection.getRoom("dashboard", "")?.send(
+                getPayload(
+                  Signal.SIGNAL_CREATE_STATE,
+                  Target.TARGET_APPS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  [payload],
+                ),
+              )
+              break
+            case "removeDashboardAppReducer":
               Connection.getRoom("dashboard", "")?.send(
                 getPayload(
                   Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                  Target.TARGET_RESOURCE,
+                  Target.TARGET_APPS,
                   true,
                   {
                     type,
@@ -410,48 +335,127 @@ export const reduxAsync: Redux.Middleware = store => next => action => {
                   [payload],
                 ),
               )
+              break
+            case "renameDashboardAppReducer":
+              Connection.getRoom("dashboard", "")?.send(
+                getPayload(
+                  Signal.SIGNAL_UPDATE_STATE,
+                  Target.TARGET_APPS,
+                  true,
+                  {
+                    type,
+                    payload,
+                  },
+                  [payload],
+                ),
+              )
+              break
+            default:
+              break
+          }
+          break
+        case "resource":
+          switch (reduxAction) {
+            case "addResourceItemReducer": {
+              const appId = store.getState().currentApp.appInfo.appId
+              if (typeof appId === "number" && appId >= 0) {
+                Connection.getRoom("app", currentAppID)?.send(
+                  getPayload(
+                    Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
+                    Target.TARGET_RESOURCE,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [payload],
+                  ),
+                )
+              } else {
+                Connection.getRoom("dashboard", "")?.send(
+                  getPayload(
+                    Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
+                    Target.TARGET_RESOURCE,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [payload],
+                  ),
+                )
+              }
+              break
             }
+            case "updateResourceItemReducer": {
+              if (typeof currentAppID === "number" && currentAppID >= 0) {
+                Connection.getRoom("app", `${currentAppID}`)?.send(
+                  getPayload(
+                    Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
+                    Target.TARGET_RESOURCE,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [payload],
+                  ),
+                )
+              } else {
+                Connection.getRoom("dashboard", "")?.send(
+                  getPayload(
+                    Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
+                    Target.TARGET_RESOURCE,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [payload],
+                  ),
+                )
+              }
 
-            break
-          }
-          case "removeResourceItemReducer": {
-            if (typeof currentAppID === "number" && currentAppID >= 0) {
-              Connection.getRoom("app", `${currentAppID}`)?.send(
-                getPayload(
-                  Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                  Target.TARGET_RESOURCE,
-                  true,
-                  {
-                    type,
-                    payload,
-                  },
-                  [payload],
-                ),
-              )
-            } else {
-              Connection.getRoom("dashboard", "")?.send(
-                getPayload(
-                  Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
-                  Target.TARGET_RESOURCE,
-                  true,
-                  {
-                    type,
-                    payload,
-                  },
-                  [payload],
-                ),
-              )
+              break
             }
+            case "removeResourceItemReducer": {
+              if (typeof currentAppID === "number" && currentAppID >= 0) {
+                Connection.getRoom("app", `${currentAppID}`)?.send(
+                  getPayload(
+                    Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
+                    Target.TARGET_RESOURCE,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [payload],
+                  ),
+                )
+              } else {
+                Connection.getRoom("dashboard", "")?.send(
+                  getPayload(
+                    Signal.SIGNAL_GLOBAL_BROADCAST_ONLY,
+                    Target.TARGET_RESOURCE,
+                    true,
+                    {
+                      type,
+                      payload,
+                    },
+                    [payload],
+                  ),
+                )
+              }
 
-            break
+              break
+            }
           }
-        }
-        break
-      default:
-        break
+          break
+        default:
+          break
+      }
+    } catch (e) {
+      console.log(e)
     }
-  } catch (e) {
-    console.log(e)
+    return resp
   }
-  return resp
-}

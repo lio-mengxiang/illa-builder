@@ -3,6 +3,7 @@ import {
   configureStore,
   createListenerMiddleware,
   ListenerEffectAPI,
+  Middleware,
   TypedStartListening,
 } from "@reduxjs/toolkit"
 import { logger } from "redux-logger"
@@ -19,6 +20,7 @@ import dragShadowReducer from "@/redux/currentApp/editor/dragShadow/dragShadowSl
 import dottedLineSquareReducer from "@/redux/currentApp/editor/dottedLineSquare/dottedLineSquareSlice"
 import executionReducer from "@/redux/currentApp/executionTree/executionSlice"
 import { reduxAsync } from "@/middleware/redux/redux-async"
+import { reduxUndoRedo } from "@/middleware/redux/redux-undo-redo"
 
 const listenerMiddleware = createListenerMiddleware()
 
@@ -39,7 +41,10 @@ const dashboardReducer = combineReducers({
   dashboardApps: dashboardAppReducer,
 })
 
-const middlewares = [reduxAsync]
+const middlewares: Middleware[] = [
+  reduxUndoRedo as Middleware,
+  reduxAsync as Middleware,
+]
 
 if (import.meta.env.DEV) {
   middlewares.push(logger)
@@ -66,6 +71,7 @@ const store = configureStore({
 
 export default store
 export type RootState = ReturnType<typeof store.getState>
+export type Store = typeof store
 
 export type AppDispatch = typeof store.dispatch
 
