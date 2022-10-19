@@ -93,7 +93,7 @@ export class Connection {
     Api.request<Room>(
       config,
       (response) => {
-        let ws = generateWs(response.data.wsURL)
+        let ws = generateWs("ws.dev.illasoft.com")
         this.roomMap.set(type + roomId, ws)
       },
       (error) => {},
