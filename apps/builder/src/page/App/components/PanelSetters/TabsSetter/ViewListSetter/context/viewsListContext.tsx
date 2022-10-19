@@ -8,6 +8,7 @@ import {
 import { useSelector } from "react-redux"
 import { getExecutionResult } from "@/redux/currentApp/executionTree/executionSelector"
 import { cloneDeep, get } from "lodash"
+import { ComponentNode } from "@/redux/currentApp/editor/components/componentsState"
 
 interface ProviderProps {
   list: ViewItemShape[]
@@ -15,6 +16,7 @@ interface ProviderProps {
   widgetDisplayName: string
   linkWidgetDisplayName: string
   attrPath: string
+  componentNode: ComponentNode
   handleUpdateDsl: (attrPath: string, value: any) => void
   handleUpdateMultiAttrDSL?: (updateSlice: Record<string, any>) => void
   handleUpdateOtherMultiAttrDSL?: (
@@ -43,6 +45,7 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
     linkWidgetDisplayName,
     handleUpdateMultiAttrDSL,
     handleUpdateOtherMultiAttrDSL,
+    componentNode,
   } = props
   const executionResult = useSelector(getExecutionResult)
 
@@ -78,9 +81,6 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
           return i !== index
         },
       )
-      const newViewComponentsArray = viewComponentsArray.filter(
-        (displayNames, i) => i !== index,
-      )
 
       const updateSlice = {
         [attrPath]: updatedArray,
@@ -100,17 +100,11 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
       }
 
       handleUpdateMultiAttrDSL?.(updateSlice)
-      console.log(
-        linkWidgetDisplayName,
-        handleUpdateOtherMultiAttrDSL,
-        "linkWidget",
-      )
       if (linkWidgetDisplayName) {
         handleUpdateOtherMultiAttrDSL?.(linkWidgetDisplayName, {
           [attrPath]: updatedArray,
           currentViewIndex: updateSlice.currentIndex,
           currentViewKey: updateSlice.currentKey,
-          viewComponentsArray: newViewComponentsArray,
         })
       }
     },
@@ -185,15 +179,12 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
   const handleMoveOptionItem = useCallback(
     (dragIndex: number, hoverIndex: number) => {
       const dragOptionItem = list[dragIndex]
-      const dragViewArray = viewComponentsArray[dragIndex]
-      const hoverViewArray = viewComponentsArray[hoverIndex]
       const currentSelected = list[currentIndex]
-      if (!dragViewArray || !hoverViewArray) return
-      const newViewComponentsArray = cloneDeep(
-        viewComponentsArray,
-      ) as string[][]
-      ;[newViewComponentsArray[dragIndex], newViewComponentsArray[hoverIndex]] =
-        [newViewComponentsArray[hoverIndex], newViewComponentsArray[dragIndex]]
+      const newComponentNode = cloneDeep(componentNode.childrenNode)
+      ;[newComponentNode[dragIndex], newComponentNode[hoverIndex]] = [
+        newComponentNode[hoverIndex],
+        newComponentNode[dragIndex],
+      ]
       const newViews = [...list]
       newViews.splice(dragIndex, 1)
       newViews.splice(hoverIndex, 0, dragOptionItem)
@@ -203,7 +194,6 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
       const newSelectedKey = newViews[newSelectedIndex].key
       handleUpdateMultiAttrDSL?.({
         [attrPath]: newViews,
-        viewComponentsArray: newViewComponentsArray,
         currentViewIndex: newSelectedIndex,
         currentViewKey: newSelectedKey,
       })
@@ -211,7 +201,6 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
       if (linkWidgetDisplayName) {
         handleUpdateOtherMultiAttrDSL?.(linkWidgetDisplayName, {
           [attrPath]: newViews,
-          viewComponentsArray: newViewComponentsArray,
           currentViewIndex: newSelectedIndex,
           currentViewKey: newSelectedKey,
         })
@@ -219,7 +208,6 @@ export const ViewListSetterProvider: FC<ProviderProps> = (props) => {
     },
     [
       list,
-      viewComponentsArray,
       currentIndex,
       handleUpdateMultiAttrDSL,
       attrPath,

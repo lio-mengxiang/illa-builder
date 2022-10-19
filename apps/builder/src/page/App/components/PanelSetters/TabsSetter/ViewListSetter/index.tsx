@@ -18,6 +18,7 @@ export const ViewListSetter: FC<ViewSetterProps> = memo(
       attrName,
       widgetDisplayName,
       childrenSetter,
+      componentNode,
       handleUpdateMultiAttrDSL,
       handleUpdateOtherMultiAttrDSL,
     } = props
@@ -84,6 +85,7 @@ export const ViewListSetter: FC<ViewSetterProps> = memo(
         widgetDisplayName={widgetDisplayName}
         linkWidgetDisplayName={linkWidgetDisplayName}
         attrPath={attrName}
+        componentNode={componentNode}
         handleUpdateMultiAttrDSL={handleUpdateMultiAttrDSL}
       >
         <div css={setterPublicWrapper}>
