@@ -17,8 +17,6 @@ import { DragItem } from "@/page/App/components/PanelSetters/OptionListSetter/in
 import { Identifier } from "dnd-core"
 import { SelectedProvider } from "@/page/App/components/InspectPanel/context/selectedContext"
 import { get } from "lodash"
-import { useSelector } from "react-redux"
-import { getComponentNodeBySingleSelected } from "@/redux/currentApp/editor/components/componentsSelector"
 
 interface ListItemProps {
   value: ViewItemShape
@@ -92,14 +90,6 @@ export const ListItem: FC<ListItemProps> = (props) => {
   drag(drop(dragRef))
   const opacity = isDragging ? 0 : 1
 
-  const singleSelectedComponentNode = useSelector(
-    getComponentNodeBySingleSelected,
-  )
-
-  const widgetType = singleSelectedComponentNode?.type || ""
-  const widgetParentDisplayName = singleSelectedComponentNode?.parentNode || ""
-  const widgetProps = singleSelectedComponentNode?.props || {}
-
   const handleUpdateDsl = useCallback(
     (attrName: string, value: any) => {
       handleUpdateMultiAttrDSL?.({
@@ -125,18 +115,9 @@ export const ListItem: FC<ListItemProps> = (props) => {
       popupVisible={modalVisible}
       content={
         <SelectedProvider
-          widgetType={widgetType}
-          widgetDisplayName={widgetDisplayName}
-          widgetParentDisplayName={widgetParentDisplayName}
-          widgetProps={widgetProps}
-          handleUpdateDsl={handleUpdateDsl}
-          handleUpdateMultiAttrDSL={(updateSlice) => {
-            handleUpdateMultiAttrDSL?.(updateSlice)
-          }}
-          handleUpdateOtherMultiAttrDSL={(displayName, updateSlice) => {
-            handleUpdateOtherMultiAttrDSL?.(displayName, updateSlice)
-          }}
           widgetOrAction="WIDGET"
+          handleUpdateDsl={handleUpdateDsl}
+          handleUpdateOtherMultiAttrDSL={handleUpdateOtherMultiAttrDSL}
         >
           <BaseModal
             title={t("editor.inspect.setter_content.option_list.model_title")}
